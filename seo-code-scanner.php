@@ -1,16 +1,16 @@
 <?php
 /**
- * Plugin Name: SEO Code Scanner (DOM Nodes + Depth + Performance)
- * Description: Scans frontend HTML of each post/page, calculates DOM size, DOM depth, frontend performance metrics, and DOM/JS insights.
- * Version: 0.5.0
+ * Plugin Name: SEO Code Scanner (DOM + Performance)
+ * Description: Scans frontend HTML of pages/posts for DOM complexity, performance issues, and render-blocking assets.
+ * Version: 1.0.0
  * Author: SEO Code Scanner
  */
 
 if (!defined('ABSPATH')) exit;
 
-/**
- * Add admin menu
- */
+/*--------------------------------------------------------------
+ ADMIN MENU
+--------------------------------------------------------------*/
 add_action('admin_menu', function () {
     add_menu_page(
         'SEO Code Scanner',
@@ -23,9 +23,9 @@ add_action('admin_menu', function () {
     );
 });
 
-/**
- * Admin Page
- */
+/*--------------------------------------------------------------
+ ADMIN PAGE
+--------------------------------------------------------------*/
 function scs_admin_page() {
     if (!current_user_can('manage_options')) return;
 
@@ -38,7 +38,7 @@ function scs_admin_page() {
     ?>
     <div class="wrap">
         <h1>SEO Code Scanner</h1>
-        <p>Analyzes frontend HTML structure per page, with performance and DOM/JS insights.</p>
+        <p>Analyze DOM size, depth, performance indicators, and render-blocking assets.</p>
 
         <form method="post">
             <input type="submit" name="scs_scan_all" class="button button-primary" value="Scan All Pages & Posts">
@@ -48,19 +48,19 @@ function scs_admin_page() {
             <hr>
             <table class="widefat striped">
                 <thead>
-                    <tr>
-                        <th>Title</th>
-                        <th>Type</th>
-                        <th>DOM Nodes <span title="Total number of HTML elements in the page. More nodes can slow down page rendering.">🛈</span></th>
-                        <th>DOM Depth <span title="Maximum level of nested HTML elements. Deeper DOMs can increase rendering complexity.">🛈</span></th>
-                        <th>HTML Size (KB) <span title="Total HTML size of the page. Larger HTML may slow initial load.">🛈</span></th>
-                        <th>External Requests <span title="Number of external CSS/JS/images requested by the page.">🛈</span></th>
-                        <th>Images <span title="Number of <img> tags on the page.">🛈</span></th>
-                        <th>Inline CSS/JS <span title="Number of inline <style> or <script> tags in HTML.">🛈</span></th>
-                        <th>Scripts <span title="Number of <script> tags including external JS.">🛈</span></th>
-                        <th>Estimated PSI <span title="A rough estimate of PageSpeed Insights score based on DOM complexity.">🛈</span></th>
-                        <th>Status</th>
-                    </tr>
+                <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>DOM Nodes</th>
+                    <th>DOM Depth</th>
+                    <th>HTML (KB)</th>
+                    <th>Images</th>
+                    <th>Scripts</th>
+                    <th>Blocking CSS</th>
+                    <th>Blocking JS</th>
+                    <th>Estimated PSI</th>
+                    <th>Status</th>
+                </tr>
                 </thead>
                 <tbody>
                 <?php foreach ($results as $row): ?>
@@ -71,51 +71,97 @@ function scs_admin_page() {
                             </a>
                         </td>
                         <td><?php echo esc_html($row['type']); ?></td>
-                        <td>
-                            <?php echo esc_html($row['dom_nodes']); ?>
-                            <span style="font-size:0.9em;color:#666;">(Total HTML elements)</span>
-                        </td>
-                        <td>
-                            <?php echo scs_depth_badge($row['dom_depth']); ?>
-                            <span style="font-size:0.9em;color:#666;">(Max nested level)</span>
-                        </td>
+                        <td><?php echo esc_html($row['dom_nodes']); ?></td>
+                        <td><?php echo scs_depth_badge($row['dom_depth']); ?></td>
                         <td><?php echo esc_html($row['html_size']); ?></td>
-                        <td><?php echo esc_html($row['external_requests']); ?></td>
                         <td><?php echo esc_html($row['images']); ?></td>
-                        <td><?php echo esc_html($row['inline_scripts']); ?></td>
                         <td><?php echo esc_html($row['script_tags']); ?></td>
+
+                        <!-- Blocking CSS -->
+                        <td>
+                            <?php echo count($row['blocking_css']); ?>
+                            <?php if (!empty($row['blocking_css'])): ?>
+                                <button
+                                    class="button button-small scs-view-assets"
+                                    data-title="Render-Blocking CSS"
+                                    data-items='<?php echo esc_attr(json_encode($row['blocking_css'])); ?>'>
+                                    View
+                                </button>
+                            <?php endif; ?>
+                        </td>
+
+                        <!-- Blocking JS -->
+                        <td>
+                            <?php echo count($row['blocking_js']); ?>
+                            <?php if (!empty($row['blocking_js'])): ?>
+                                <button
+                                    class="button button-small scs-view-assets"
+                                    data-title="Render-Blocking JS"
+                                    data-items='<?php echo esc_attr(json_encode($row['blocking_js'])); ?>'>
+                                    View
+                                </button>
+                            <?php endif; ?>
+                        </td>
+
                         <td><?php echo esc_html($row['psi']); ?>/100</td>
                         <td><?php echo scs_status_badge($row['dom_nodes'], $row['dom_depth']); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
-
-            <p style="margin-top:10px;">
-                <em>Estimated PSI is based on DOM complexity only and is not an official Google score.</em>
-            </p>
-
-            <hr>
-            <h2>Explanation of Terms</h2>
-            <ul>
-                <li><strong>DOM Nodes:</strong> Total HTML elements. More nodes can slow rendering.</li>
-                <li><strong>DOM Depth:</strong> Maximum nesting level of HTML elements.</li>
-                <li><strong>HTML Size:</strong> Size of the HTML content in KB.</li>
-                <li><strong>External Requests:</strong> Number of external CSS, JS, and images requested.</li>
-                <li><strong>Images:</strong> Number of &lt;img&gt; tags on the page.</li>
-                <li><strong>Inline CSS/JS:</strong> Number of inline &lt;style&gt; or &lt;script&gt; tags in HTML.</li>
-                <li><strong>Scripts:</strong> Total number of &lt;script&gt; tags including external JS.</li>
-                <li><strong>Estimated PSI:</strong> Rough estimate of PageSpeed score based on DOM complexity.</li>
-                <li><strong>Status:</strong> Page complexity assessment based on DOM nodes and depth.</li>
-            </ul>
         <?php endif; ?>
     </div>
+
+    <!-- MODAL -->
+    <div id="scs-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999;">
+        <div style="background:#fff; max-width:700px; margin:5% auto; padding:20px; border-radius:6px; position:relative;">
+            <button onclick="scsCloseModal()" style="position:absolute; top:10px; right:10px;">✕</button>
+            <h2 id="scs-modal-title"></h2>
+            <ul id="scs-modal-content" style="font-size:13px; max-height:400px; overflow:auto;"></ul>
+            <p style="font-size:12px;color:#666;margin-top:10px;">
+                These files block rendering and can delay First Paint and LCP.
+            </p>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script>
+        document.addEventListener('click', function (e) {
+            if (!e.target.classList.contains('scs-view-assets')) return;
+
+            const title = e.target.dataset.title;
+            const items = JSON.parse(e.target.dataset.items || '[]');
+
+            document.getElementById('scs-modal-title').innerText = title;
+            const list = document.getElementById('scs-modal-content');
+            list.innerHTML = '';
+
+            if (!items.length) {
+                list.innerHTML = '<li>No blocking assets found.</li>';
+            }
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.style.marginBottom = '10px';
+                li.innerHTML =
+                    '<strong>' + item.origin + '</strong><br>' +
+                    '<code style="font-size:12px;">' + item.url + '</code>';
+                list.appendChild(li);
+            });
+
+            document.getElementById('scs-modal').style.display = 'block';
+        });
+
+        function scsCloseModal() {
+            document.getElementById('scs-modal').style.display = 'none';
+        }
+    </script>
     <?php
 }
 
-/**
- * Scan all posts & pages
- */
+/*--------------------------------------------------------------
+ SCAN ALL PAGES
+--------------------------------------------------------------*/
 function scs_scan_all_pages() {
     $query = new WP_Query([
         'post_type'      => ['post', 'page'],
@@ -126,22 +172,22 @@ function scs_scan_all_pages() {
     $results = [];
 
     foreach ($query->posts as $post) {
-        $url = get_permalink($post->ID);
+        $url  = get_permalink($post->ID);
         $scan = scs_scan_url($url);
 
         if ($scan) {
             $results[] = [
-                'title'             => get_the_title($post->ID),
-                'type'              => $post->post_type,
-                'url'               => $url,
-                'dom_nodes'         => $scan['dom_nodes'],
-                'dom_depth'         => $scan['dom_depth'],
-                'psi'               => scs_calculate_psi($scan['dom_nodes'], $scan['dom_depth']),
-                'html_size'         => $scan['html_size'],
-                'external_requests' => $scan['external_requests'],
-                'images'            => $scan['images'],
-                'inline_scripts'    => $scan['inline_scripts'],
-                'script_tags'       => $scan['script_tags'],
+                'title'        => get_the_title($post->ID),
+                'type'         => $post->post_type,
+                'url'          => $url,
+                'dom_nodes'    => $scan['dom_nodes'],
+                'dom_depth'    => $scan['dom_depth'],
+                'html_size'    => $scan['html_size'],
+                'images'       => $scan['images'],
+                'script_tags'  => $scan['script_tags'],
+                'blocking_css' => $scan['blocking_css'],
+                'blocking_js'  => $scan['blocking_js'],
+                'psi'          => scs_calculate_psi($scan['dom_nodes'], $scan['dom_depth']),
             ];
         }
     }
@@ -150,9 +196,9 @@ function scs_scan_all_pages() {
     return $results;
 }
 
-/**
- * Scan single URL with performance and DOM/JS insights
- */
+/*--------------------------------------------------------------
+ SCAN SINGLE URL
+--------------------------------------------------------------*/
 function scs_scan_url($url) {
     $response = wp_remote_get($url, ['timeout' => 15]);
     if (is_wp_error($response)) return false;
@@ -164,75 +210,91 @@ function scs_scan_url($url) {
     $dom = new DOMDocument();
     $dom->loadHTML($html);
 
-    // DOM metrics
-    $dom_nodes = $dom->getElementsByTagName('*')->length;
-    $dom_depth = scs_get_dom_depth($dom->documentElement);
-
-    // Frontend performance indicators
-    $html_size = round(strlen($html) / 1024, 2); // KB
-    $external_requests = preg_match_all('/<(script|link|img)[^>]+(src|href)/i', $html, $matches);
-    $images = preg_match_all('/<img[^>]+>/i', $html, $matches);
-
-    // DOM & JS insights
-    $inline_scripts = preg_match_all('/<script[^>]*>.*?<\/script>/is', $html, $matches);
-    $script_tags = preg_match_all('/<script[^>]*>/i', $html, $matches);
-
     return [
-        'dom_nodes'         => $dom_nodes,
-        'dom_depth'         => $dom_depth,
-        'html_size'         => $html_size,
-        'external_requests' => $external_requests,
-        'images'            => $images,
-        'inline_scripts'    => $inline_scripts,
-        'script_tags'       => $script_tags,
+        'dom_nodes'    => $dom->getElementsByTagName('*')->length,
+        'dom_depth'    => scs_get_dom_depth($dom->documentElement),
+        'html_size'    => round(strlen($html) / 1024, 2),
+        'images'       => preg_match_all('/<img[^>]+>/i', $html),
+        'script_tags'  => preg_match_all('/<script[^>]*>/i', $html),
+        'blocking_css' => scs_get_render_blocking_css($html),
+        'blocking_js'  => scs_get_render_blocking_js($html),
     ];
 }
 
-/**
- * DOM Depth calculation (recursive)
- */
+/*--------------------------------------------------------------
+ RENDER BLOCKING DETECTION
+--------------------------------------------------------------*/
+function scs_get_render_blocking_css($html) {
+    preg_match_all('/<link[^>]+rel=["\']stylesheet["\'][^>]*>/i', $html, $matches);
+    $files = [];
+
+    foreach ($matches[0] as $tag) {
+        if (stripos($tag, 'media=') !== false && stripos($tag, 'all') === false) continue;
+        if (stripos($tag, 'preload') !== false) continue;
+
+        preg_match('/href=["\']([^"\']+)["\']/', $tag, $href);
+        if (!empty($href[1])) {
+            $files[] = scs_classify_asset_origin($href[1]);
+        }
+    }
+    return $files;
+}
+
+function scs_get_render_blocking_js($html) {
+    preg_match_all('/<script[^>]+src=["\']([^"\']+)["\'][^>]*><\/script>/i', $html, $matches);
+    $files = [];
+
+    foreach ($matches[1] as $i => $src) {
+        $tag = $matches[0][$i];
+
+        if (stripos($tag, 'defer') !== false || stripos($tag, 'async') !== false) continue;
+
+        $files[] = scs_classify_asset_origin($src);
+    }
+    return $files;
+}
+
+function scs_classify_asset_origin($url) {
+    if (strpos($url, content_url()) !== false) {
+        if (strpos($url, '/plugins/') !== false) return ['url' => $url, 'origin' => 'Plugin'];
+        if (strpos($url, '/themes/') !== false) return ['url' => $url, 'origin' => 'Theme'];
+        return ['url' => $url, 'origin' => 'Core'];
+    }
+    return ['url' => $url, 'origin' => 'External'];
+}
+
+/*--------------------------------------------------------------
+ HELPERS
+--------------------------------------------------------------*/
 function scs_get_dom_depth($node, $depth = 1) {
     $max = $depth;
-
     foreach ($node->childNodes as $child) {
         if ($child->nodeType === XML_ELEMENT_NODE) {
-            $child_depth = scs_get_dom_depth($child, $depth + 1);
-            if ($child_depth > $max) $max = $child_depth;
+            $max = max($max, scs_get_dom_depth($child, $depth + 1));
         }
     }
     return $max;
 }
 
-/**
- * PSI calculation (DOM size + depth)
- */
-function scs_calculate_psi($dom_nodes, $dom_depth) {
+function scs_calculate_psi($nodes, $depth) {
     $score = 100;
+    if ($nodes > 1800) $score -= 35;
+    elseif ($nodes > 1200) $score -= 25;
+    elseif ($nodes > 800) $score -= 15;
 
-    if ($dom_nodes > 1800) $score -= 35;
-    elseif ($dom_nodes > 1200) $score -= 25;
-    elseif ($dom_nodes > 800) $score -= 15;
-
-    if ($dom_depth > 20) $score -= 30;
-    elseif ($dom_depth > 16) $score -= 20;
-    elseif ($dom_depth > 12) $score -= 10;
+    if ($depth > 20) $score -= 30;
+    elseif ($depth > 16) $score -= 20;
+    elseif ($depth > 12) $score -= 10;
 
     return max(0, min(100, $score));
 }
 
-/**
- * DOM depth badge
- */
 function scs_depth_badge($depth) {
-    if ($depth <= 8) return '<span style="color:green;font-weight:bold;">' . $depth . ' (Shallow)</span>';
-    if ($depth <= 12) return '<span style="color:orange;font-weight:bold;">' . $depth . ' (OK)</span>';
-    if ($depth <= 16) return '<span style="color:#d35400;font-weight:bold;">' . $depth . ' (Deep)</span>';
-    return '<span style="color:red;font-weight:bold;">' . $depth . ' (Critical)</span>';
+    if ($depth <= 8) return '<span style="color:green;font-weight:bold;">'.$depth.'</span>';
+    if ($depth <= 12) return '<span style="color:orange;font-weight:bold;">'.$depth.'</span>';
+    return '<span style="color:red;font-weight:bold;">'.$depth.'</span>';
 }
 
-/**
- * Overall status badge
- */
 function scs_status_badge($nodes, $depth) {
     if ($nodes < 800 && $depth <= 8) return '<span style="color:green;font-weight:bold;">Excellent</span>';
     if ($nodes < 1200 && $depth <= 12) return '<span style="color:orange;font-weight:bold;">Moderate</span>';
