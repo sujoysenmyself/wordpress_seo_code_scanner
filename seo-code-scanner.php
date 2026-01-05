@@ -38,7 +38,6 @@ function scs_admin_page() {
     ?>
     <div class="wrap">
         <h1>SEO Code Scanner</h1>
-        <p>Analyze DOM complexity, deepest element path, render-blocking CSS/JS, and top contributors grouped by Builder / Plugin / Theme / Core / External.</p>
 
         <form method="post" style="margin-bottom:10px;">
             <input type="submit" name="scs_scan_all" class="button button-primary" value="Scan All Pages & Posts">
