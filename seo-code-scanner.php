@@ -58,7 +58,7 @@ function scs_admin_page() {
                     <th>Scripts</th>
                     <th>Blocking CSS</th>
                     <th>Blocking JS</th>
-                    <th>Top Contributor</th>
+                    <th>Top Blocking Contributor</th>
                     <th>Asset Summary</th>
                     <th>PSI</th>
                     <th>Status</th>
